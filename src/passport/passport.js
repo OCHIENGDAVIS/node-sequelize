@@ -1,5 +1,8 @@
-const LocalStrategy = require('passport-local').Strategy;
 const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const JWTStrategy = require('passport-jwt').Strategy;
+const ExtractJWT = require('passport-jwt').ExtractJwt;
+
 const { User } = require('../../database/models');
 const {
   generatePassword,
@@ -9,6 +12,11 @@ const {
 const customFields = {
   usernameField: 'email',
   passwordField: 'password',
+};
+
+const options = {
+  jwtFromRequest: ExtractJWT.fromAuthHeaderAsBearerToken(),
+  secretOrKey: process.env.JWT_SECRETE,
 };
 
 const verifyCallback = async (email, password, done) => {
@@ -47,3 +55,17 @@ passport.deserializeUser(async (userId, done) => {
     done(error);
   }
 });
+
+const JWT = new JWTStrategy(options, async (payload, done) => {
+  try {
+    const user = await User.findOne({ where: { id: payload.sub } });
+    if (user) {
+      done(null, user);
+    } else {
+      return done(null, false);
+    }
+  } catch (error) {
+    done(error, null);
+  }
+});
+passport.use(JWT);

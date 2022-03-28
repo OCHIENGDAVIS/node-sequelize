@@ -1,10 +1,45 @@
-const { generatePassword } = require('../utils/passwordUtils');
+const {
+  generatePassword,
+  validatePassword,
+} = require('../utils/passwordUtils');
 const { User } = require('../../database/models');
+const { issueJwt } = require('../utils/jwtUtils');
 
-const login = async (req, res) => {
-  console.log('login has been sucesfull');
+const getAllUser = async (req, res) => {
   console.log(req.session);
-  return res.send('POST: /login');
+  res.send('all users');
+};
+
+const getCurrentUser = (req, res) => {
+  return res.json({ user: req.user, msg: 'sucess' });
+};
+
+const logOutUser = (req, res) => {
+  req.logout();
+  console.log(req.session);
+  return res.json({ msg: 'Logged out' });
+};
+
+const login = async (req, res, next) => {
+  try {
+    const user = await User.findOne({ where: { email: req.body.email } });
+    if (!user) {
+      return res.json({ msg: 'Could not find user' });
+    }
+    const isValidPassword = validatePassword(
+      req.body.password,
+      user.password,
+      user.salt
+    );
+    if (!isValidPassword) {
+      return res.json({ msg: 'invalid password' });
+    }
+    const { token, expiresIn } = issueJwt(user);
+
+    return res.json({ token, expiresIn, msg: 'sucess' });
+  } catch (error) {
+    next(error);
+  }
 };
 
 const register = async (req, res) => {
@@ -13,7 +48,6 @@ const register = async (req, res) => {
   console.log(hash, salt);
   try {
     let userExists = await User.findOne({ where: { email } });
-    console.log('USER EXISTS', userExists);
     if (userExists) {
       return res.send('User with that email already exists');
     }
@@ -26,7 +60,8 @@ const register = async (req, res) => {
     });
     const savedUser = await user.save();
     console.log(savedUser);
-    return res.send('User created Succesfully');
+    const { token, expiresIn } = issueJwt(savedUser);
+    return res.json({ token, expiresIn, msg: 'sucess' });
   } catch (error) {
     console.log(error);
     res.send('Something went wrong');
@@ -36,4 +71,7 @@ const register = async (req, res) => {
 module.exports = {
   login,
   register,
+  getAllUser,
+  getCurrentUser,
+  logOutUser,
 };
